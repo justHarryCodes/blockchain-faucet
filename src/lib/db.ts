@@ -1,5 +1,5 @@
 import 'server-only'
-import Database from 'better-sqlite3'
+import { DatabaseSync } from 'node:sqlite'
 import { createHash } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
@@ -9,8 +9,14 @@ const SALT = process.env.IP_HASH_SALT ?? ''
 
 mkdirSync(dirname(DB_PATH), { recursive: true })
 
-const db = new Database(DB_PATH)
-db.pragma('journal_mode = WAL')
+// node's built-in SQLite (stable, no flag needed since Node 22.13 — this repo
+// targets Node 22.18+) instead of better-sqlite3: some hosts (e.g. Hostinger
+// shared hosting) ship a system python3 too old for node-gyp's bundled gyp
+// (needs 3.8+ for the walrus operator), which makes better-sqlite3's native
+// build fail with no way to fix it from inside the app. node:sqlite ships
+// compiled into the node binary itself, so there's nothing to build.
+const db = new DatabaseSync(DB_PATH)
+db.exec('PRAGMA journal_mode = WAL')
 
 // `claims` is an append-only history log — one row per successful claim
 // event, not one row per address — since an address can claim repeatedly
