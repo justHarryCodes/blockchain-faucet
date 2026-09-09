@@ -4,20 +4,39 @@ import { JsonRpcProvider, Wallet } from 'ethers'
 // `server-only` above makes Next.js throw a build error if anything client-side
 // ever imports this file — the private key must never reach a browser bundle.
 
-const RPC_URL = process.env.RPC_URL
-const PRIVATE_KEY = process.env.FAUCET_PRIVATE_KEY
-
-if (!RPC_URL) throw new Error('RPC_URL is not set — see .env.example')
-if (!PRIVATE_KEY) throw new Error('FAUCET_PRIVATE_KEY is not set — see .env.example')
-
 export const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 76081)
 
-export const serverProvider = new JsonRpcProvider(RPC_URL, {
-	chainId: CHAIN_ID,
-	name: process.env.NEXT_PUBLIC_CHAIN_NAME ?? 'SysFi Testnet',
-})
+function requireEnv(name: string): string {
+	const value = process.env[name]
+	if (!value) throw new Error(`${name} is not set — see .env.example`)
+	return value
+}
 
-export const faucetWallet = new Wallet(PRIVATE_KEY, serverProvider)
+// Provider/wallet are built lazily, on first actual use, rather than at
+// module-evaluation time. `next build` statically imports every route module
+// (including this one, transitively) to collect page data — it never calls
+// the handlers — and deployment platforms (Coolify, etc.) typically only
+// inject real secrets into the running container, not the build step. Eager
+// construction here made every build fail before a single request ever came
+// in; env vars are only actually needed once a claim is served.
+let _serverProvider: JsonRpcProvider | null = null
+export function getServerProvider(): JsonRpcProvider {
+	if (!_serverProvider) {
+		_serverProvider = new JsonRpcProvider(requireEnv('RPC_URL'), {
+			chainId: CHAIN_ID,
+			name: process.env.NEXT_PUBLIC_CHAIN_NAME ?? 'SysFi Testnet',
+		})
+	}
+	return _serverProvider
+}
+
+let _faucetWallet: Wallet | null = null
+export function getFaucetWallet(): Wallet {
+	if (!_faucetWallet) {
+		_faucetWallet = new Wallet(requireEnv('FAUCET_PRIVATE_KEY'), getServerProvider())
+	}
+	return _faucetWallet
+}
 
 /**
  * Local nonce tracking rather than trusting the node's "pending" count on
@@ -28,7 +47,7 @@ export const faucetWallet = new Wallet(PRIVATE_KEY, serverProvider)
 let nextNoncePromise: Promise<number> | null = null
 async function getNextNonce(): Promise<number> {
 	if (nextNoncePromise === null) {
-		nextNoncePromise = serverProvider.getTransactionCount(faucetWallet.address, 'pending')
+		nextNoncePromise = getServerProvider().getTransactionCount(getFaucetWallet().address, 'pending')
 	}
 	return nextNoncePromise
 }

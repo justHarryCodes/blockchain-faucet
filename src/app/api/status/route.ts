@@ -1,10 +1,10 @@
 import { formatEther } from 'ethers'
 import { totalClaims } from '@/lib/db'
-import { faucetWallet, serverProvider } from '@/lib/serverChain'
+import { getFaucetWallet, getServerProvider } from '@/lib/serverChain'
 
 export async function GET() {
 	try {
-		const balance = await serverProvider.getBalance(faucetWallet.address)
+		const balance = await getServerProvider().getBalance(getFaucetWallet().address)
 		return Response.json({
 			balance: formatEther(balance),
 			totalClaims: totalClaims(),

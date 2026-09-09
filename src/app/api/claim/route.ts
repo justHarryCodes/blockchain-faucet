@@ -1,7 +1,7 @@
 import { parseEther } from 'ethers'
 import { cooldownRemaining, hashIp, isIpOverLimit, reserveClaim, finalizeClaim, releaseClaim } from '@/lib/db'
 import { isValidAddress } from '@/lib/format'
-import { faucetWallet, withNonceLock } from '@/lib/serverChain'
+import { getFaucetWallet, withNonceLock } from '@/lib/serverChain'
 
 const CLAIM_AMOUNT = process.env.NEXT_PUBLIC_CLAIM_AMOUNT ?? '1'
 
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
 	try {
 		const txHash = await withNonceLock(async (nonce) => {
-			const tx = await faucetWallet.sendTransaction({
+			const tx = await getFaucetWallet().sendTransaction({
 				to: address,
 				value: parseEther(CLAIM_AMOUNT),
 				nonce,
