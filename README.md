@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SysFi Faucet
 
-## Getting Started
+A testnet faucet for the SysFi network. Developers connect a wallet or paste an address and receive test **SYN** tokens, limited to one claim per wallet every 24 hours.
 
-First, run the development server:
+## Features
+
+- **One-click claims:** connect a browser wallet or paste an address.
+- **Abuse protection:** a 24-hour cooldown per wallet address and per IP address. IPs are stored only as salted hashes, never in plain text.
+- **Live status:** the faucet balance, the claim amount and a countdown to the next allowed claim.
+- **Network setup:** adds the SysFi testnet to the user's wallet automatically.
+- **Social gate:** asks users to follow [@sysfidao](https://x.com/sysfidao) before claiming. This isn't verified.
+- **Light and dark themes.**
+
+## Tech stack
+
+- [Next.js](https://nextjs.org) (App Router) with React and TypeScript
+- [ethers](https://docs.ethers.org) for signing and sending the faucet transfers
+- `node:sqlite` for claim history. It's built into Node.js, so there's no native module to compile.
+- Tailwind CSS and lucide-react icons
+
+## Getting started
+
+**Requirements:** Node.js 22.18 or later, which is needed for `node:sqlite`.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/justHarryCodes/blockchain-faucet.git
+cd blockchain-faucet
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create a `.env.local` file (see [Environment variables](#environment-variables)), then run:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run dev      # http://localhost:3000
+npm run build && npm start   # production
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment variables
 
-## Learn More
+| Variable | Required | Description |
+|---|---|---|
+| `FAUCET_PRIVATE_KEY` | ✅ | Private key of the wallet that funds claims. **Server-only. Never commit it.** |
+| `RPC_URL` | ✅ | The RPC endpoint the server uses to send transfers. |
+| `IP_HASH_SALT` | ✅ | A random secret used to hash client IPs. |
+| `DATABASE_PATH` | | Path to the SQLite file. Default `./data/faucet.db`. |
+| `NEXT_PUBLIC_CHAIN_ID` | | Chain ID. Default `76081`. |
+| `NEXT_PUBLIC_CHAIN_ID_HEX` | | The chain ID in hex, used when adding the network to a wallet. |
+| `NEXT_PUBLIC_CHAIN_NAME` | | Network name shown in the UI and wallet. |
+| `NEXT_PUBLIC_RPC_URL` | | The public RPC added to users' wallets. |
+| `NEXT_PUBLIC_CURRENCY_SYMBOL` | | Native token symbol. Default `SYN`. |
+| `NEXT_PUBLIC_CLAIM_AMOUNT` | | Tokens sent per claim. |
+| `NEXT_PUBLIC_EXPLORER_URL` | | Block explorer base URL, used for transaction links. |
 
-To learn more about Next.js, take a look at the following resources:
+## How it works
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. The client calls `POST /api/claim` with the recipient address.
+2. The server checks the 24-hour cooldown for both the address and the hashed IP in SQLite.
+3. If the claim is allowed, the server signs and sends the transfer from the faucet wallet, records it, and returns the transaction hash.
+4. `GET /api/status` reports the faucet balance and the caller's remaining cooldown.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project structure
 
-## Deploy on Vercel
+```
+src/
+├── app/
+│   ├── api/claim/route.ts    # Sends tokens, enforces cooldowns
+│   ├── api/status/route.ts   # Faucet balance + cooldown status
+│   ├── layout.tsx
+│   └── page.tsx
+├── components/               # FaucetCard, SocialGate, ThemeToggle
+└── lib/                      # Chain config, SQLite store, wallet helpers
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The faucet runs on any Node.js 22.18+ host with a persistent disk for the SQLite file, such as a VPS, Railway or Render. Serverless platforms with read-only file systems need `DATABASE_PATH` pointed at a writable volume.
